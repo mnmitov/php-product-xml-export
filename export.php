@@ -88,10 +88,12 @@ function addProducts($results, $file, $db)
 function getPrice($data)
 {
     if ($data['date_start'] <= date('Y-m-d') && $data['date_end'] > date('Y-m-d')) {
-        return $data['special_price'];
+        $value = $data['special_price'];
     } else {
-        return $data['price'];
+        $value = $data['price'];
     }
+
+    return $value;
 }
 
 
