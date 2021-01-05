@@ -11,7 +11,10 @@ $sql =
     m.name as manufacturer, 
     ccc.name as base_name,
     cd.name as parent_name,
-    cdc.name as child_name
+    cdc.name as child_name,
+    ps.price as special_price,
+    ps.date_start as date_start,
+    ps.date_end as date_end
 FROM oc_product p
 LEFT JOIN oc_product_description pd     ON p.product_id = pd.product_id
 LEFT JOIN oc_manufacturer m             ON p.manufacturer_id = m.manufacturer_id
@@ -21,6 +24,7 @@ LEFT JOIN oc_category_description cd    ON c.parent_id = cd.category_id
 LEFT JOIN oc_category_description cdc   ON ptc.category_id = cdc.category_id
 LEFT JOIN oc_category cat               ON c.parent_id = cat.category_id
 LEFT JOIN oc_category_description ccc   ON cat.parent_id = ccc.category_id
+LEFT JOIN oc_product_special ps         ON p.product_id = ps.product_id
 WHERE p.status = 1 AND
 pd.language_id = 1 AND 
 cd.language_id = 1 AND  
@@ -50,32 +54,82 @@ function addProducts($results, $file, $db)
         $product->addChild('ProductNumber', $data['part_num']);
         $product->addChild('Name', htmlspecialchars($data['product_name']));
         $product->addChild('Product_url', htmlspecialchars('https://' . $_SERVER['SERVER_NAME'] . '/index.php?route=product/product&product_id=' . $data['product_id']));
-        $product->addChild('Price', $data['price']);
-        $product->addChild('net_price', round((float)($data['price'] / 1.2), 2));
+        $product->addChild('Price', getPrice($data));
+        $product->addChild('net_price', round((float)(getPrice($data) / 1.2), 2));
         $product->addChild('Image_url', htmlspecialchars(image($data['image'])));
         $product->addChild('Category', $data['base_name'] . " > " . $data['parent_name'] . " > " . $data['child_name']);
         $product->addChild('Description', htmlspecialchars($data['meta_description']));
         $product->addChild('Delivery_Time', 1);
-        $product->addChild('Delivery_Cost', deliveryCost($data['price']));
+        $product->addChild('Delivery_Cost', deliveryCost(getPrice($data)));
         $product->addChild('EAN_code', $data['ean']);
         $attributes = $product->addChild('Attributes', '');
 
         foreach ($result_attributes as $attr) {
             $attribute = $attributes->addChild('Attribute');
             $attribute->addChild('Attribute_name', $attr['attr_name']);
-            $attribute->addChild('Attribute_value', $attr['attr_descr']);
+            $attribute->addChild('Attribute_value', htmlspecialchars($attr['attr_descr']));
         }
     }
 
     $xml->asXML($file);
 
     if ($xml) {
-        echo "Successfully generated file: $file";
+        echo "<pre>", "XML EXPORT FOR PAZARUVAJ.COM", "</pre>";
+        echo "<pre>", "<a href='https://pazaruvaj.com/admin'>" . "PAZARUVAJ.COM - ADMIN" . "</a>", "</pre>";
+        echo "<pre>", "Successfully generated file: " . $file, "</pre>";
+        echo "<pre>", "File size: " . fileSizeConvert(filesize($file)), "</pre>";
+        echo "<pre>", "XML Created on: " . date('D, d M Y H:i:s'), "</pre>";
+        echo "<pre>", "Last update (export.php): " . date('d M Y H:i:s', filectime('export.php')), "</pre>";
     } else {
         throw new Error('Big problem...');
     }
 }
 
+function getPrice($data)
+{
+    if ($data['date_start'] <= date('Y-m-d') && $data['date_end'] > date('Y-m-d')) {
+        return $data['special_price'];
+    } else {
+        return $data['price'];
+    }
+}
+
+
+function fileSizeConvert($bytes)
+{
+    $bytes = floatval($bytes);
+    $arBytes = array(
+        0 => array(
+            "UNIT" => "TB",
+            "VALUE" => pow(1024, 4)
+        ),
+        1 => array(
+            "UNIT" => "GB",
+            "VALUE" => pow(1024, 3)
+        ),
+        2 => array(
+            "UNIT" => "MB",
+            "VALUE" => pow(1024, 2)
+        ),
+        3 => array(
+            "UNIT" => "KB",
+            "VALUE" => 1024
+        ),
+        4 => array(
+            "UNIT" => "B",
+            "VALUE" => 1
+        ),
+    );
+
+    foreach ($arBytes as $arItem) {
+        if ($bytes >= $arItem["VALUE"]) {
+            $result = $bytes / $arItem["VALUE"];
+            $result = str_replace(".", ",", strval(round($result, 2))) . " " . $arItem["UNIT"];
+            break;
+        }
+    }
+    return $result;
+}
 
 function deliveryCost($price)
 {
